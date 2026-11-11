@@ -68,6 +68,7 @@ The file registers itself as `X_VERSIONS[VERSION]` (your own global name). Each 
 | `index.html?mode=swarm&stage=N&seed=S&speed=K&hold=1` | swarm mode on one stage |
 | `index.html?mode=sheet&stage=N&seed=S&bot=I` | one picture with 6 frames of one bot's run, for the reviewers |
 | `window.__x.over`, `__x.frameMs`, `__x.sheet` | "the run is finished", frame times, and the result of the sheet run |
+| `index.html?mode=play&auto=1&speed=K` | a top-skill bot on the human input path, for the final check; `speed` is needed when a stage is long |
 
 ## Step 2: the bots
 
@@ -152,7 +153,7 @@ Order of work: first the places where no bot can pass, then stages below the tar
 
 - **Know the size of one sample.** The mid group is 30 bots x 5 seeds = 150 runs. One bot is 0.67 points. Near 70% the standard error is about 3.7 points. Two versions that differ by less than about 5 points are the same.
 - **Fixed seeds do not make two versions a paired test.** A change that kills nobody still moves the time at which bots come to later hazards, and that can move the result by some points.
-- **If a stage is nearer to the band edge than the sampling error, do not change it yet.** Run the committed version on more seeds (give your probe script a seed-count argument; 20 seeds is a good number) and decide from the larger sample. The table in the README uses the 5-seed number; print both when they are on different sides of an edge. In one test this rule found a stage that looked in the band and was not.
+- **If a stage is nearer to the band edge than the sampling error, do not change it yet.** Run the committed version on more seeds (`SEEDS=20 node tools/probe.js <stage>` in the reference; 20 seeds is a good number) and decide from the larger sample. The table in the README uses the 5-seed number; print both when they are on different sides of an edge. In one test this rule found a stage that looked in the band and was not.
 - More seeds on a committed version are a probe, and that is permitted. A swarm run on a change that is not committed is not.
 - **Aim at the middle of the band,** not at its edge.
 - **If a step went too far, go back half of the effect, not half of the number.** Most levers are not linear. When you have two measured points, work out the next value from them.
