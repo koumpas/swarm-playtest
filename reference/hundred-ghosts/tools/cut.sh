@@ -5,6 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 N="$1"; MSG="$2"
 grep -q "const VERSION = $N;" sim.js || { echo "sim.js VERSION is not $N"; exit 1; }
+mkdir -p versions
 cp sim.js "versions/v$N.js"
 git add -A
 git commit -q -F "$MSG"

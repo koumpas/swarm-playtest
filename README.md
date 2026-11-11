@@ -26,11 +26,12 @@ Then, in Claude Code, ask for a game and say that you want a swarm playtest, for
 ## Scope and status
 
 - For new browser games in plain JavaScript that Claude writes. Not for existing games in large engines.
-- Used on two games so far:
+- Used on three games so far:
   - **Hundred Ghosts** (platformer, by the session that wrote the skill): 8 of 8 stages on target after 12 versions.
-  - **Latchkey** (top-down, free movement, by a session that had only this folder and a limit of 5 versions): a working game, bots, harness and record in one pass; 3 of 4 stages on target. The skill was then changed from that session's report (bot design for other genres, sampling error and step size, when logs are committed, page hooks).
-- The changed skill has not been tested again.
-- The bots are a model of players, not players. The difficulty target is your choice.
+  - **Latchkey** (top-down, free movement; a session that had only this folder; limit of 5 versions): a working game, bots, harness and record in one pass; 3 of 4 stages on target.
+  - **A one-button rhythm game** (a session that had only this folder; limit of 5 versions): 4 of 4 tracks on target at the last version. Its tester did not call it a safe hit, and the playtester score went down while the target was hit.
+- The skill text was changed after each test, from the tester's report. The text here was not tested again after the last change.
+- The bots are a model of players, not players. The difficulty target is your choice, and hitting it is not the same as a better game.
 
 ## Licence
 

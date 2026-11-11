@@ -11,7 +11,8 @@ There are two worked examples. `reference/hundred-ghosts/` is the full one (a pl
 
 ## What to expect
 
-- This was used on two games. A platformer: 8 of 8 stages on target after 12 versions. A top-down arena game, by a session that had only this folder: a working game, bots and record in one pass, but 3 of 4 stages on target after a limit of 5 versions.
+- This was used on three games. A platformer: 8 of 8 stages on target after 12 versions. A top-down arena game, by a session that had only this folder: 3 of 4 stages on target after a limit of 5 versions. A one-button rhythm game, also from this folder only: 4 of 4 on target at version 5, the last one allowed, and its tester did not call it a safe hit.
+- Hitting the target is not the same as a better game. In the rhythm run the panel score went down (4.83 to 4.5) while the target was hit, because one band for all stages removed the difficulty curve. See Step 0.
 - Plan about 1.5 to 2 versions for each stage. Version 1 (game, bots, harness) is most of the work. Each later version is one probe, one edit and one measurement of about 40 seconds.
 - The loop does not converge by itself. Read "Noise and step size" in Step 5 before you tune.
 
@@ -21,7 +22,7 @@ Use this for a new browser game in plain HTML and JavaScript with no build step,
 
 Do not use it, and tell the user why, when:
 - the game exists already and its logic is mixed into the render loop, or it uses a physics engine that is not deterministic;
-- the game has no clear "finished the stage / failed the stage" result;
+- the game has no "finished / failed" result and the user does not want one. If the game only has a score, you can add a pass rule (a life meter that a hit fills and a miss empties, or a score threshold). Say in the README that the rule is new. Its numbers are then your main tuning lever;
 - the game is multiplayer or depends on a server.
 
 ## Step 0: ask two things, then start
@@ -29,7 +30,9 @@ Do not use it, and tell the user why, when:
 1. **The difficulty target.** "What share of mid-skill players must finish each stage on the first try?" If the user has no opinion, propose 60–80% and say that this is a choice, not a rule.
 2. **The genre, the number of stages and their length** (if not given). Default: 6 to 8 stages, 10 to 20 seconds each.
 
-Do not ask more. Decide the rest. Put the target band in ONE place in the game (a constant in `sim.js`); the harness and the renderer read it from there.
+3. **One band for all stages, or a band for each stage?** One band for all gives a flat difficulty curve: the first stage must fail as many players as the last. If the stages have labels such as EASY to EXPERT, or the user wants a curve, set a band for each stage (for example 80–95% for the first, 40–60% for the last).
+
+Do not ask more. Decide the rest. Put the target band in ONE place in the game (a constant in `sim.js`); the harness and the renderer read it from there. If a stage has a fixed length (a music track), drop the length check.
 
 ## Step 1: the contract (this makes all other steps possible)
 
@@ -40,6 +43,9 @@ Put the whole simulation in ONE file, `sim.js`. It is the versioned part of the 
 - **Moving things are a pure function of the frame number** (`pos = f(t)`), so a bot can ask where a hazard is 40 frames from now at no cost.
 - **Player state is one small object that can be cloned.** State that belongs to one player (a tile that breaks, a key that is taken) lives in that object, not in the world. So 100 bots share one world and do not touch each other.
 - **Stages are data from a small builder**, in game units. The reference builder is a cursor that moves right (`b.run(6); b.gap(3)`); for a game with free movement use positions (`b.wall(x, y, w, h); b.key(x, y)`). Write the statements of a stage with `;` between them: `tools/export.mjs` splits changed lines at `;` to show the real changed statements.
+- If stage data is not written by hand (a chart from a file), put the data inside `sim.js`, because `versions/vN.js` must run alone, and make the builder an edit list (`b.drop(i); b.rule('window', 0.07)`). Do not put a `;` inside a function body on a stage line; the export cuts there.
+- Decide if a rule number is one for the game or one for each stage, and say it in the README. "One change on a stage" pushes you to a number for each stage; a game where each stage has its own rules can be a doubtful design that no measurement shows.
+- **The frame grid.** At 60 Hz each event is on a 16.7 ms grid. If you compare a number with a value on that grid (a timing window), list the values it can take before you choose a step. A change between two grid values changes nothing.
 - **A version constant** at the top: `const VERSION = 1;`.
 
 `sim.js` gives these functions (see the `API` object at the end of the reference `sim.js`):
@@ -47,7 +53,7 @@ Put the whole simulation in ONE file, `sim.js`. It is the versioned part of the 
 | Function | Job |
 |---|---|
 | `newPlayer(stage)` | a new player state at the start |
-| `step(stage, player, <input>, t, tHazard)` | one frame; sets `player.alive`, `player.done`, `player.cause`. The input is what your genre needs (the reference has `dir, jump`; an arena game can use one number for 8 directions). Keep `t` (real frame) and `tHazard` (the frame a bot uses for things that kill). |
+| `step(stage, player, <input>, t, tHazard)` | one frame; sets `player.alive`, `player.done`, `player.cause`. The input is what your genre needs (the reference has `dir, jump`; an arena game can use one number for 8 directions). Keep `t` (real frame) and `tHazard` (the frame a bot uses for things that kill); drop `tHazard` if nothing moves. |
 | `createSwarm(stageIndex, seed, n)` | n bots on one stage; has `step()`, `over`, `deaths[]`, `events[]` |
 | `swarmStats(swarm)` | pass counts for low, mid and high skill; causes of death; audit counts |
 | `makeBot`, `botStep` | one bot, so the game can also show a bot on the human input path |
@@ -67,7 +73,9 @@ The file registers itself as `X_VERSIONS[VERSION]` (your own global name). Each 
 
 The bots are scripts, not a learned policy: at each decision a bot clones its own state, plays each action of a short list forward with the real `step()`, and takes the action with the most progress and no death. Noise makes the skill range. Reference: `think`, `rollout`, `makeBot` in `sim.js`.
 
-You must define five things for your genre. The reference defines them for a platformer; do not copy them to another genre.
+**First: does look-ahead fit?** It fits when the player chooses between actions (move, jump, wait). It does not fit a timing game with one button, where the whole future is on the screen: a look-ahead finds the perfect press each time. There the bot is a model of the press error, not a planner: for each note, press at note time + a constant habit of that bot + a random error, or do not press. Its numbers (spread of the press time by skill, the shortest gap a bot can tap, more error after a miss or a pause, lapses) decide the pass rate, and you have no human data for them: say so in the README. Card and turn games need their own bot too. In all cases keep: scripted, seeded, a skill range from noise, the same three groups.
+
+For a look-ahead bot, you must define five things for your genre. The reference defines them for a platformer; do not copy them to another genre.
 
 1. **Progress.** One number that says how near the goal a state is.
    - Side-scroller: x position against the frames used.
@@ -90,11 +98,13 @@ Rules. Each cost a version in the reference run:
 
 The gym:
 - Develop the bot script on a separate small **gym track** that has each mechanic once. Do not run the swarm on the real stages before v1 is committed.
-- The gym is good enough when: the pass rate is in order (low < mid < high), no bot is stuck, and the audits are 0.
+- The gym is good enough when: the pass rate is in order (low < mid < high), no bot is stuck, and the audits are 0. **Then read the full run of one mid-skill bot** (print it or draw it). Look for an error that causes the next error, and for a loss at the same place in each run. A faulty bot passed the numbers above in one test and cost a version.
 - Before v1 you may run ONE top-skill bot through each real stage, to see that the stage can be finished and how long it takes. This is not a swarm run. Fix a stage that is too short or cannot be finished before v1.
 - Add two findings to the harness: `skill-order` (low < mid < high on each stage) and `length` (mean finish time inside the range from Step 0).
 
 A bot change after v1 is its own version, with its own commit, and you say in the message and in the README that the bots are no longer the same script.
+
+Report the low and high groups too. If the mid group is in the band but the low group passes 1–14%, the game is closed to the bottom third of players; say so.
 
 Cost: about 30 actions x 60 frames of look-ahead x 100 bots is roughly 1 second for one swarm run in Node.
 
@@ -106,6 +116,8 @@ In swarm mode the game draws, with no video edit:
 - one pass-rate bar for each stage with the target band marked;
 - the version number and the seed;
 - a speed label when it runs faster than real time.
+
+If a failure is the sum of many small losses (a meter that empties), the place where the run ends is not the cause. Record and draw where the losses are (the miss rate of each note), not only the end.
 
 **One seed on screen is not the measurement.** The live bar shows the seed on screen (30 mid-skill bots); the log has 5 seeds (150). They can differ by 15 points. Where a picture goes to a reviewer or to the user, also give the 5-seed number (the reference brief has a column for it).
 
@@ -140,7 +152,10 @@ Order of work: first the places where no bot can pass, then stages below the tar
 
 - **Know the size of one sample.** The mid group is 30 bots x 5 seeds = 150 runs. One bot is 0.67 points. Near 70% the standard error is about 3.7 points. Two versions that differ by less than about 5 points are the same.
 - **Fixed seeds do not make two versions a paired test.** A change that kills nobody still moves the time at which bots come to later hazards, and that can move the result by some points.
-- **If a stage is nearer to the band edge than the sampling error, do not change the stage.** Add seeds for that decision, or leave it.
+- **If a stage is nearer to the band edge than the sampling error, do not change it yet.** Run the committed version on more seeds (give your probe script a seed-count argument; 20 seeds is a good number) and decide from the larger sample. The table in the README uses the 5-seed number; print both when they are on different sides of an edge. In one test this rule found a stage that looked in the band and was not.
+- More seeds on a committed version are a probe, and that is permitted. A swarm run on a change that is not committed is not.
+- **Aim at the middle of the band,** not at its edge.
+- **If a step went too far, go back half of the effect, not half of the number.** Most levers are not linear. When you have two measured points, work out the next value from them.
 - **Change one thing at a time on a stage,** and prefer a change whose effect you measured before. Then still expect to be wrong: in the two runs, single changes moved a stage by +30 and by -32 points.
 - **Do not touch a stage that is in the band** to fix a smaller thing, unless you have versions to spare. One such change cost a stage that was never got back.
 
@@ -148,7 +163,7 @@ Stop when every stage is in the band and the panel score has been flat for three
 
 ### Lessons from the two runs
 
-- **Measure, do not trust a number worked out on paper.** A jump is shorter in the real step function than in the formula; a "62–67%" guess measured 42.7%.
+- **Measure, do not trust a number worked out on paper.** A jump is shorter in the real step function than in the formula; a "62–67%" guess measured 42.7%; a model that said 85% measured 33%.
 - **A slower hazard is not an easier hazard.** It is in the way for a longer time.
 - **A hazard that a bot can wait for, or can see the size of, does not make a stage harder.** A hazard on the only route does, and by a lot.
 - **Two hazards with the same period can be in step with the player**, so the second one kills nobody. Offset it by a quarter period.
@@ -165,7 +180,9 @@ The brief for each stage has: 6 frames of one mid-skill run, the swarm at the en
 
 Each reviewer writes `log/reviews/vN/<persona>.json` with a score for each stage, a score out of 10, and 60–110 words. The panel score of a version is the mean of the three.
 
-The panel and the target can disagree. Report that; do not hide it.
+Do not run the first panel before you have read one bot trace: the reviewers cannot tell a bot fault from a game fault, and they will describe it as a property of the stage. Say in the brief what the pictures cannot show (sound, feel).
+
+The panel and the target can disagree. Report that; do not hide it. When the panel says the curve is flat, the cause is the band from Step 0, not the build.
 
 ## Step 7: the record
 

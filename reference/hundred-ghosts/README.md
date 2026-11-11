@@ -24,7 +24,7 @@ The two install steps are necessary only for the measurement tools. The game its
 
 | Page | What it shows |
 |---|---|
-| `http://127.0.0.1:8100/index.html` | Title screen. PLAY (human), SWARM (100 bots), REPLAY (v1 against v12). |
+| `http://127.0.0.1:8100/index.html` | Title screen. Main controls: PLAY, STAGE SELECT, LEADERBOARD. Below them, marked "watch only": the 100-bot swarm. |
 | `index.html?mode=swarm&stage=3&seed=101&speed=2` | Swarm mode on one stage (`stage=all` for all 8). |
 | `index.html?mode=replay&a=1&b=12&stage=2&speed=4` | Two versions, top and bottom, same seed. |
 | `index.html?mode=play&auto=1` | A top-skill bot plays through the human input path. |
@@ -41,12 +41,18 @@ node tools/run-swarm.mjs
 
 ## Leaderboard (hosted game only)
 
-After a full run from stage 1, the results screen asks for a name and sends the run to `/api/scores`.
+There are two boards. **Full run:** the total time for all 8 stages, from stage 1. **Stage records:** the best time for each stage, from a full run or from one stage played alone (STAGE SELECT in the menu). A tie goes to the earlier run.
+
+Three kinds of entry:
+- a person's run;
+- `GHOST`: a seeded, replay-checked run by a scripted bot of ordinary skill (Wisp, Boo, Mist). These are ranked, so the board is not empty and the first records can be beaten;
+- the **perfect time**: the best run by the top-skill bot (best of 600 full runs, best of 300 for each stage). It is shown as a reference line and is not ranked.
+
+After a run, the results screen asks for a name and sends the run to `/api/scores`.
 
 - **The page does not send a time.** It sends the recorded inputs (one code for each tick). The server replays them with the same `sim.js` and `play.js` and stores the time that the replay gives. A cut or changed recording is refused.
 - **Storage:** one small file for each score in a private Vercel Blob store. All fields are in the file name, so a listing is the leaderboard.
-- **Badges:** `BOT` is a real, replay-checked run of a scripted ghost bot. `PAR` is a target time set by the owner, not a played run; a real run by the owner replaces it.
-- **Reserved names** (`alex`, `ghost…`) need an owner key that is not in this repository.
+- **Reserved names** (`alex`, `ghost…`), ghost entries and the perfect time need an owner key that is not in this repository.
 - **Rate limit:** 6 submissions in 10 minutes and 30 in 24 hours for each visitor. The address is stored only as a hash.
 - **Names:** swear words and slurs are refused, also with digits, dashes or stretched letters (`lib/names.js`; the lists are stored in ROT13). A word list cannot catch all cases.
 - **One stored run for each name:** the best one.
