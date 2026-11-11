@@ -21,11 +21,15 @@ Then, in Claude Code, ask for a game and say that you want a swarm playtest, for
 
 - `SKILL.md`: the steps and the rules (deterministic simulation in one file, scripted bots with a skill range, a harness, commit first and measure after, a playtester panel, an honest README).
 - `reference/hundred-ghosts/`: the full worked example (game, bots, tools, viewer) and `COMMITS.md` with its 12 version commit messages.
+- `reference/latchkey/`: a second, small example in a different genre.
 
 ## Scope and status
 
 - For new browser games in plain JavaScript that Claude writes. Not for existing games in large engines.
-- Made from one game (a platformer). Use on other genres is not yet proven.
+- Used on two games so far:
+  - **Hundred Ghosts** (platformer, by the session that wrote the skill): 8 of 8 stages on target after 12 versions.
+  - **Latchkey** (top-down, free movement, by a session that had only this folder and a limit of 5 versions): a working game, bots, harness and record in one pass; 3 of 4 stages on target. The skill was then changed from that session's report (bot design for other genres, sampling error and step size, when logs are committed, page hooks).
+- The changed skill has not been tested again.
 - The bots are a model of players, not players. The difficulty target is your choice.
 
 ## Licence

@@ -42,6 +42,8 @@ for (const f of findings) say(`FINDING stage ${f.stage} [${f.kind}]: ${f.msg}`);
 const inBand = stages.filter(s => s.midPct >= BAND[0] && s.midPct <= BAND[1]).length;
 say(`stages in the ${BAND[0]}–${BAND[1]}% mid-skill band: ${inBand}/${stages.length}`);
 
+// write the log now, so the pass-rate bars of the other stages are filled in the screenshots; it is written again at the end
+fs.mkdirSync(path.join(ROOT, 'log'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'log', `v${V}.json`), JSON.stringify({ version: V, seeds: SEEDS, bots: BOTS, band: BAND, inBand, stages, findings, lines }));
 // real-time pass: frame time + screenshots (the HUD and heatmap in them are drawn by the game)
 const cpu = [], raf = [], shots = [], sheets = [];
 for (let s = 0; s < info.stages; s++) {

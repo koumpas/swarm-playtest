@@ -11,5 +11,8 @@
   "license": "ISC",
   "devDependencies": {
     "playwright": "^1.65.0"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2"
   }
 }

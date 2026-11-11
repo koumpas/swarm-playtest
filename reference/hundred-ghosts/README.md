@@ -39,6 +39,20 @@ Measure the current `sim.js` again (same seeds):
 node tools/run-swarm.mjs
 ```
 
+## Leaderboard (hosted game only)
+
+After a full run from stage 1, the results screen asks for a name and sends the run to `/api/scores`.
+
+- **The page does not send a time.** It sends the recorded inputs (one code for each tick). The server replays them with the same `sim.js` and `play.js` and stores the time that the replay gives. A cut or changed recording is refused.
+- **Storage:** one small file for each score in a private Vercel Blob store. All fields are in the file name, so a listing is the leaderboard.
+- **Badges:** `BOT` is a real, replay-checked run of a scripted ghost bot. `PAR` is a target time set by the owner, not a played run; a real run by the owner replaces it.
+- **Reserved names** (`alex`, `ghost…`) need an owner key that is not in this repository.
+- **Rate limit:** 6 submissions in 10 minutes and 30 in 24 hours for each visitor. The address is stored only as a hash.
+- **Names:** swear words and slurs are refused, also with digits, dashes or stretched letters (`lib/names.js`; the lists are stored in ROT13). A word list cannot catch all cases.
+- **One stored run for each name:** the best one.
+- **Limits:** names are not accounts, so two people can use the same name. The check proves that the inputs give the time; it cannot prove that a person, and not a script, made the inputs. Scores belong to a game version: a new `sim.js` version starts an empty board.
+- Local static server: the game plays, the leaderboard says that it is not available.
+
 ## What the game draws by itself
 
 The death heatmap (red glow in the stage and in the whole-stage strip), one mid-skill pass-rate bar for each stage with the 60–80% band, the version badge, the seed, the bot counts, and the speed label. None of this is added in a video edit.
@@ -120,7 +134,7 @@ Stages: 1 First Steps, 2 Spike Garden, 3 Saw Mill, 4 Ferry Lines, 5 Crumble Brid
 
 ## Files
 
-- `index.html`, `main.js`, `render.js`: game shell and renderer. `sim.js`: the versioned simulation (current = v12).
+- `index.html`, `main.js`, `render.js`: game shell and renderer. `play.js`: the human play loop as a function of recorded inputs. `api/scores.js`: the leaderboard function. `sim.js`: the versioned simulation (current = v12).
 - `viewer.html`: split-screen history. It reads `log/history.json` and runs `versions/vN.js` live.
 - `versions/v1.js` .. `v12.js`: snapshot of `sim.js` at each tag.
 - `log/v1.json` .. `v12.json`: for each version: metrics, all death positions (heatmap data), findings, log lines, reviews, git data. `log/history.json`: the export for the viewer. `log/reviews/`: panel rules, briefs and the 36 raw reviews. `log/verify.json`: final checks.
