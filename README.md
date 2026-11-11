@@ -27,3 +27,7 @@ Then, in Claude Code, ask for a game and say that you want a swarm playtest, for
 - For new browser games in plain JavaScript that Claude writes. Not for existing games in large engines.
 - Made from one game (a platformer). Use on other genres is not yet proven.
 - The bots are a model of players, not players. The difficulty target is your choice.
+
+## Licence
+
+MIT. See `LICENSE`.
