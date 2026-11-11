@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hundred Ghosts - history viewer</title>
+<style>
+  :root { --bg: #070818; --panel: #10122c; --line: #262a55; --ink: #eef0ff; --dim: #9aa0c8; --pink: #ff7ad9; --gold: #ffe27a; --green: #5df2a0; --red: #ff5d73; --amber: #ffb347; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: 0 0; background: var(--bg); display: grid; grid-template-columns: 800px 1fr; gap: 12px; padding: 12px; }
+  .left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  #game { width: 800px; height: 450px; border-radius: 10px; display: block; background: #000; }
+  .strip { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: 190px 1fr; gap: 10px; padding: 10px 14px; min-height: 0; }
+  .ver { display: flex; flex-direction: column; justify-content: center; }
+  .ver .big { font-size: 78px; font-weight: 900; line-height: 0.95; color: var(--pink); font-variant-numeric: tabular-nums; }
+  .ver .of { font-size: 13px; color: var(--dim); font-weight: 700; margin-top: 4px; }
+  .ver .tag { font-size: 12px; font-weight: 800; margin-top: 8px; padding: 3px 8px; border-radius: 6px; align-self: flex-start; background: #262a55; }
+  #chart { width: 100%; height: 100%; display: block; }
+  .right { display: grid; grid-template-rows: 216px 216px 1fr; gap: 10px; min-width: 0; min-height: 0; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+  .box h2 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; color: var(--dim); font-weight: 800; display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+  .box h2 span:last-child { color: var(--gold); overflow: hidden; text-overflow: ellipsis; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; line-height: 1.45; }
+  #log { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+  #log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #c9cdf5; }
+  #log div.f { color: var(--red); } #log div.ok { color: var(--green); }
+  #subject { font-size: 13px; font-weight: 800; line-height: 1.25; margin-bottom: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #why { font-size: 11px; color: #c9cdf5; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 6px; }
+  #diff { flex: 1; overflow: hidden; }
+  #diff div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .del { color: #ff8fa0; } .add { color: #7df5b4; }
+  #stat { font-size: 10.5px; color: var(--dim); margin-top: 3px; }
+  #reviews { flex: 1; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+  .rev { display: grid; grid-template-columns: 78px 38px 1fr; gap: 8px; align-items: baseline; font-size: 11.5px; line-height: 1.3; }
+  .rev b { color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .rev .s { font-size: 17px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .rev .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #dfe2ff; }
+  #end { position: absolute; inset: 0; background: rgba(5, 6, 18, 0.9); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; }
+  #end h1 { font-size: 60px; margin: 0; font-weight: 900; } #end h1 em { color: var(--gold); font-style: normal; }
+  #end .row { display: flex; gap: 26px; } #end .k { font-size: 44px; font-weight: 900; font-variant-numeric: tabular-nums; } #end .l { font-size: 13px; color: var(--dim); font-weight: 700; }
+  #end p { color: var(--dim); font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="left">
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="strip">
+      <div class="ver"><div class="big" id="vbig">v1</div><div class="of" id="vof"></div><div class="tag" id="vtag"></div></div>
+      <div style="position:relative;min-height:0"><canvas id="chart" style="position:absolute;inset:0"></canvas></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="box"><h2><span>SWARM LOG · log/v<span id="ln"></span>.json</span><span id="lmeta"></span></h2><div id="log" class="mono"></div></div>
+    <div class="box"><h2><span>GIT COMMIT</span><span id="hash"></span></h2><div id="subject"></div><div id="why"></div><div id="diff" class="mono"></div><div id="stat"></div></div>
+    <div class="box"><h2><span>PLAYTESTER PANEL</span><span id="avg"></span></h2><div id="reviews"></div></div>
+  </div>
+  <div id="end"></div>
+</div>
+<script src="render.js"></script>
+<script>
+// Everything shown here is read from log/history.json (git + reviews export) and log/vN.json (swarm runs).
+// The left side is not a video: it runs versions/vN.js live with the logged seed.
+(async function () {
+  const Q = new URLSearchParams(location.search), PER = +(Q.get('per') || 3.3), SPEED = +(Q.get('speed') || 8), SEED = +(Q.get('seed') || 101);
+  const stage = document.getElementById('stage');
+  function fit() { const k = Math.min(innerWidth / 1280, innerHeight / 720); stage.style.transform = `scale(${k}) translate(-50%, -50%)`; } addEventListener('resize', fit); fit();
+  const $ = id => document.getElementById(id), esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const H = await (await fetch('log/history.json', { cache: 'no-store' })).json(), VS = H.versions, N = VS.length;
+  await Promise.all(VS.map(v => new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'versions/v' + v.version + '.js'; s.onload = ok; s.onerror = bad; document.head.appendChild(s); })));
+  const R = HGRender, cv = $('game'), ctx = cv.getContext('2d'), ch = $('chart'), cc = ch.getContext('2d');
+  // which stage to show for a version: the one whose mid-skill pass rate changed most (v1: the worst one)
+  function pickStage(i) { const m = VS[i].metrics.mid; if (i === 0) return m.indexOf(Math.min(...m)); const p = VS[i - 1].metrics.mid; let b = 0, d = -1; m.forEach((x, s) => { const dd = Math.abs(x - p[s]); if (dd > d) { d = dd; b = s; } }); return b; }
+  let cur = -1, view = null, t0 = 0, shown = 0, done = false, lines = [];
+  function show(i) {
+    cur = i; const v = VS[i], api = HG_VERSIONS[v.version], s = pickStage(i);
+    view = new R.SwarmView(api, s, SEED, { bars: v.metrics.mid }); shown = 0;
+    lines = v.lines.filter(l => !/frame time|swarm run/.test(l));
+    $('vbig').textContent = 'v' + v.version; $('vof').textContent = `version ${i + 1} of ${N} · ${v.metrics.botRuns.toLocaleString('en')} bot runs`;
+    const band = v.metrics.inBand, tag = $('vtag'); tag.textContent = `${band}/8 stages in the 60–80% band`; tag.style.color = band === 8 ? '#10122c' : '#fff'; tag.style.background = band === 8 ? 'var(--green)' : band >= 4 ? '#7a5a12' : '#7a1f33';
+    $('ln').textContent = v.version; $('lmeta').textContent = `${lines.length} lines · sim ×${SPEED} speed`; $('log').innerHTML = '';
+    $('hash').textContent = v.git.hash + ' · tag v' + v.version; $('subject').textContent = v.git.subject; $('why').textContent = v.git.body.split('\n').filter(Boolean).slice(0, 3).join(' ');
+    $('diff').innerHTML = v.git.simDiff.length ? v.git.simDiff.slice(0, 4).map(h => `<div class="del">- ${esc(h.del)}</div><div class="add">+ ${esc(h.add)}</div>`).join('') : '<div style="color:var(--dim)">first commit: no diff</div>';
+    $('stat').textContent = i ? `sim.js vs v${v.version - 1}: ${v.git.simDiff.length} changed places · code diff ${v.git.filesChanged} files, +${v.git.insertions} −${v.git.deletions}` : '';
+    const prev = i ? VS[i - 1].panelScore : null, d = v.panelScore != null && prev != null ? v.panelScore - prev : null;
+    $('avg').innerHTML = v.panelScore == null ? 'no reviews' : `average ${v.panelScore.toFixed(1)} / 10` + (d == null ? '' : ` <b style="color:${d >= 0 ? 'var(--green)' : 'var(--red)'}">${d >= 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}</b>`);
+    $('reviews').innerHTML = v.reviews.map(r => `<div class="rev"><b>${esc(r.persona)}</b><span class="s" style="color:${r.score >= 6 ? 'var(--green)' : r.score >= 4.5 ? 'var(--amber)' : 'var(--red)'}">${r.score.toFixed(1)}</span><span class="t">${esc(r.worst || r.review)}</span></div>`).join('');
+    drawChart();
+  }
+  function drawChart() {
+    const w = ch.parentElement.clientWidth, h = ch.parentElement.clientHeight, dpr = Math.min(2, devicePixelRatio || 1); ch.width = w * dpr; ch.height = h * dpr; cc.setTransform(dpr, 0, 0, dpr, 0, 0); cc.clearRect(0, 0, w, h);
+    const L = 34, Rr = 34, T = 22, B = 22, pw = (w - L - Rr) / N, ph = h - T - B;
+    R.text(cc, 'STAGES IN BAND (bars, of 8)', L, 12, 10, '#5df2a0', 'left', 800); R.text(cc, 'PANEL SCORE (line, of 10)', w - Rr, 12, 10, '#ffe27a', 'right', 800);
+    cc.strokeStyle = '#262a55'; cc.lineWidth = 1; for (let k = 0; k <= 4; k++) { const y = T + ph * k / 4; cc.beginPath(); cc.moveTo(L, y); cc.lineTo(w - Rr, y); cc.stroke(); R.text(cc, '' + (8 - 2 * k), L - 6, y + 3, 9, '#5df2a0', 'right', 700); R.text(cc, (10 - 2.5 * k).toFixed(k % 2 ? 1 : 0), w - Rr + 6, y + 3, 9, '#ffe27a', 'left', 700); }
+    VS.forEach((v, i) => { const x = L + i * pw, on = i <= cur; cc.fillStyle = on ? (v.metrics.inBand === 8 ? '#5df2a0' : 'rgba(93,242,160,.45)') : 'rgba(255,255,255,.05)'; const bh = ph * v.metrics.inBand / 8; cc.fillRect(x + 5, T + ph - bh, pw - 10, Math.max(bh, 1.5)); if (on) R.text(cc, '' + v.metrics.inBand, x + pw / 2, T + ph - bh - 3, 10, '#5df2a0', 'center', 800); R.text(cc, 'v' + v.version, x + pw / 2, h - 7, 10, i === cur ? '#fff' : '#9aa0c8', 'center', i === cur ? 900 : 600); });
+    cc.strokeStyle = '#ffe27a'; cc.lineWidth = 2.5; cc.beginPath(); let st = false; VS.forEach((v, i) => { if (i > cur || v.panelScore == null) return; const x = L + i * pw + pw / 2, y = T + ph * (1 - v.panelScore / 10); st ? cc.lineTo(x, y) : cc.moveTo(x, y); st = true; }); cc.stroke();
+    VS.forEach((v, i) => { if (i > cur || v.panelScore == null) return; const x = L + i * pw + pw / 2, y = T + ph * (1 - v.panelScore / 10); cc.fillStyle = '#ffe27a'; cc.beginPath(); cc.arc(x, y, i === cur ? 5 : 3, 0, 7); cc.fill(); if (i === cur) R.text(cc, v.panelScore.toFixed(1), x, y - 9, 12, '#ffe27a', 'center', 900); });
+  }
+  function endCard() {
+    done = true; const a = VS[0], b = VS[N - 1], lastScore = [...VS].reverse().find(v => v.panelScore != null);
+    $('end').style.display = 'flex'; $('end').innerHTML = `<h1>v${a.version} → <em>v${b.version}</em></h1><div class="row">` +
+      [[`${a.metrics.inBand}/8 → ${b.metrics.inBand}/8`, 'stages in the 60–80% band'], [`${a.panelScore.toFixed(1)} → ${lastScore.panelScore.toFixed(1)}`, `playtester panel score (v${lastScore.version})`], [H.totals.botRuns.toLocaleString('en'), 'bot runs'], [H.totals.reviews, 'reviews']].map(k => `<div><div class="k">${k[0]}</div><div class="l">${k[1]}</div></div>`).join('') +
+      `</div><p>${N} versions, ${N} commits with a measurement in each message. Swarm replays ran at ×${SPEED} speed. Press R to play again.</p>`;
+  }
+  function frame(now) {
+    if (!t0) t0 = now; const el = (now - t0) / 1000, i = Math.min(N - 1, Math.floor(el / PER));
+    if (!done) {
+      if (i !== cur) show(i);
+      view.update(SPEED); ctx.setTransform(1, 0, 0, 1, 0, 0); view.draw(ctx, 0, 0, 960, 540, { full: true, speed: SPEED, versionLabel: VS[cur].version });
+      const frac = (el - cur * PER) / (PER * 0.8), want = Math.min(lines.length, Math.ceil(frac * lines.length));
+      for (; shown < want; shown++) { const l = lines[shown], d = document.createElement('div'); d.textContent = l; if (/FINDING/.test(l)) d.className = 'f'; else if (/in the 60/.test(l)) d.className = 'ok'; $('log').appendChild(d); while ($('log').children.length > 13) $('log').firstChild.remove(); }
+      if (el >= N * PER + 1.2) endCard();
+    }
+    window.__viewer = { cur, done, el }; requestAnimationFrame(frame);
+  }
+  addEventListener('keydown', e => { if (e.code === 'KeyR') { $('end').style.display = 'none'; done = false; cur = -1; t0 = 0; } });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

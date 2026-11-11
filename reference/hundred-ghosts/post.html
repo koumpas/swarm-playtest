@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hundred Ghosts - post cut</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;margin:0 auto;height:100vh;aspect-ratio:1}</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1080"></canvas>
+<script src="render.js"></script>
+<script>
+// Square cut of the story for a social video. One idea and one headline for each shot.
+//   1. both facts: the game (one ghost) above, the 100 bots below      2. normal play
+//   3. the system: 100 bots, red = deaths                               4. (off by default) v1..vN counter
+//   5. v1 against the last version, same seed                           6. end card
+// All numbers come from log/history.json; the game areas run versions/vN.js live.
+// ?capture=1 lets tools/render-post.mjs drive it frame by frame.
+// Headline font: Phosphate (a macOS system font). Other systems fall back to Impact.
+(async function () {
+  const Q = new URLSearchParams(location.search), SEED = 101, FPS = 30, CAP = Q.get('capture') === '1';
+  const H = await (await fetch('log/history.json', { cache: 'no-store' })).json(), ALL = H.versions, N = ALL.length, FIRST = ALL[0], LAST = ALL[N - 1];
+  await Promise.all([...new Set(ALL.map(v => v.version))].map(n => new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'versions/v' + n + '.js'; s.onload = ok; s.onerror = bad; document.head.appendChild(s); })));
+  const DISP = '"Phosphate", "Impact", "Arial Black", sans-serif', BODY = '"Futura", "Avenir Next", "Segoe UI", sans-serif';
+  try { await Promise.all([document.fonts.load('80px Phosphate'), document.fonts.load('700 30px Futura')]); } catch (e) {}
+  const SCALE = Math.max(1, +(Q.get('scale') || 1)); document.getElementById('c').width = document.getElementById('c').height = 1080 * SCALE; // ?scale=2 renders 2160x2160
+  const R = HGRender, cv = document.getElementById('c'), c = cv.getContext('2d'), W = 1080, API = HG_VERSIONS[LAST.version];
+  const put = (font, s, x, y, col, align) => { c.font = font; c.fillStyle = col; c.textAlign = align || 'left'; c.textBaseline = 'alphabetic'; c.fillText(s, x, y); };
+  // headline: shrinks to fit maxW
+  function D(s, x, y, size, col, align, maxW) { if (maxW) { c.font = `${size}px ${DISP}`; while (c.measureText(s).width > maxW && size > 20) { size -= 2; c.font = `${size}px ${DISP}`; } } put(`${size}px ${DISP}`, s, x, y, col, align); }
+  const F = (s, x, y, size, col, align, wt) => put(`${wt || 700} ${size}px ${BODY}`, s, x, y, col, align);
+  const shade = (y, h, a) => { const g = c.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, `rgba(6,7,22,${a})`); g.addColorStop(1, 'rgba(6,7,22,0)'); c.fillStyle = g; c.fillRect(0, y, W, h); };
+  const tag = (s, x, y) => { c.font = `600 20px ${BODY}`; const w = c.measureText(s).width + 28; c.fillStyle = 'rgba(8,10,28,.8)'; c.beginPath(); c.roundRect(x - w, y - 27, w, 38, 10); c.fill(); F(s, x - 14, y, 20, '#ffe27a', 'right', 600); };
+  // the version where a fix made one stage much worse (largest drop of a mid-skill pass rate), from the data
+  let FAIL = { drop: 0 }; ALL.forEach((v, i) => { if (!i) return; v.metrics.mid.forEach((m, s) => { const d = ALL[i - 1].metrics.mid[s] - m; if (d > FAIL.drop) FAIL = { drop: d, i, stage: s, from: ALL[i - 1].metrics.mid[s], to: m }; }); });
+
+  const HARD = { v: FIRST, stage: FIRST.metrics.mid.indexOf(Math.min(...FIRST.metrics.mid)) };
+  let EASY = { over: 0 }; ALL.forEach(v => v.metrics.mid.forEach((m, st) => { const o = m - LAST.metrics.mid[st]; if (m > 80 && o >= EASY.over) EASY = { over: o, v, stage: st }; }));
+  const BAND = '60–80%';
+  // ---- normal play: one ghost, driven by the top-skill bot through the same step() a person uses ----
+  function Play(stage, skip, Z, top, h) { this.stage = stage; this.st = API.STAGES[stage]; this.Z = Z; this.top = top; this.h = h; this.vw = W / Z; this.t = 0; this.deaths = 0; this.parts = new R.Particles(); this.sq = 0; this.shake = 0; this.respawn = 0; this.spawn(); for (let i = 0; i < skip; i++) this.step(); this.cam = this.target(); }
+  Play.prototype.spawn = function () { this.p = API.newPlayer(this.st); this.bot = API.makeBot(99, 100, SEED + this.stage + this.deaths * 7); this.bot.start = 0; this.bot.next = this.t; };
+  Play.prototype.target = function () { return Math.max(0, Math.min(this.st.W * API.T - this.vw, this.p.x - this.vw * 0.36)); };
+  Play.prototype.step = function () { const p = this.p; this.parts.update(); this.sq *= 0.82; this.shake *= 0.85;
+    if (this.respawn > 0) { this.t++; if (--this.respawn === 0) this.spawn(); return; } if (p.done) { this.t++; return; }
+    API.botStep(this.st, this.bot, p, this.t); const fx = p.x + 9, fy = p.y + 26;
+    if (p.ev & 1) { this.sq = -0.5; this.parts.burst(fx, fy, 5, '#dfe2ff', 1.6, 16); } if (p.ev & 2) { this.sq = 0.6; this.parts.burst(fx, fy, 6, '#dfe2ff', 1.8, 16); } if (p.ev & 4) { this.sq = -0.9; this.parts.burst(fx, fy, 12, '#7cff6b', 3.5, 24); this.shake = 3; }
+    if (!p.alive) { this.deaths++; this.shake = 11; this.parts.burst(fx, Math.min(p.y + 13, 530), 26, '#ff5d73', 5, 40); this.respawn = 40; } else if (p.done) this.parts.burst(this.st.goalX, this.st.goalY - 40, 40, '#ffe27a', 5, 50);
+    this.t++; this.cam += (this.target() - this.cam) * 0.14; };
+  Play.prototype.draw = function () { const p = this.p, sh = this.shake > 0.4 ? this.shake : 0, Z = this.Z;
+    c.save(); c.beginPath(); c.rect(0, this.top, W, this.h); c.clip(); c.translate(0, this.top); R.drawBackdrop(c, this.st, this.cam, W, this.h);
+    c.translate(Math.sin(this.t * 1.9) * sh, this.h + 40 * Z - 544 * Z + Math.cos(this.t * 2.3) * sh); c.scale(Z, Z); c.translate(-this.cam, 0); R.drawWorld(c, API, this.st, this.t, this.cam, this.vw, { cr: p.cr }); this.parts.draw(c);
+    if (p.alive && this.respawn === 0 && !p.done) R.drawPlayer(c, p, this.t, this.sq + Math.max(-0.3, Math.min(0.3, -p.vy * 0.02))); c.restore(); };
+
+  // ---- timeline (frames at 30 fps) ----
+  const S1 = 144, CLIPS = [[2, 24, 48], [5, 16, 48]], S2 = CLIPS.reduce((a, k) => a + k[2], 0), S3 = 120, TICK = 8, HOLD = 66, S4 = Q.get('versions') === '1' ? (N - 1) * TICK + HOLD + 24 : 0, S5 = 216, S6 = 192;
+  const T2 = S1, T3 = T2 + S2, T4 = T3 + S3, T5 = T4 + S4, T6 = T5 + S5, TOTAL = T6 + S6;
+  let scene = null, views = null, play = null;
+  function setup(f) {
+    let key; if (f < T2) key = '1'; else if (f < T3) key = '2' + (f - T2 < CLIPS[0][2] ? 'a' : 'b'); else if (f < T4) key = '3'; else if (f < T5) key = '4'; else if (f < T6) key = '5' + (f - T5 < S5 / 2 ? 'a' : 'b'); else key = '6';
+    if (key === scene) return; scene = key;
+    if (key === '1') { play = new Play(0, 0, 1.5, 0, 540); views = [new R.SwarmView(API, 0, SEED, {})]; }
+    else if (key[0] === '2') { const k = CLIPS[key[1] === 'a' ? 0 : 1]; play = new Play(k[0], k[1], 1.7, 0, 1080); }
+    else if (key === '3') views = [new R.SwarmView(API, 1, SEED, {})];
+    else if (key[0] === '5') { const k = key[1] === 'a' ? HARD : EASY; views = [new R.SwarmView(HG_VERSIONS[k.v.version], k.stage, SEED, {}), new R.SwarmView(API, k.stage, SEED, {})]; views.k = k; views.hard = key[1] === 'a';
+      // the result of this exact run (same seed), so the numbers are on screen from the first frame
+      views.fin = [k.v.version, LAST.version].map(n => { const t = new R.SwarmView(HG_VERSIONS[n], k.stage, SEED, {}); while (!t.sw.over) t.sw.step(); return Math.round(t.midPct()); }); }
+  }
+  function step() { if (scene === '1') { play.step(); play.step(); views[0].update(6); } else if (scene[0] === '2') { play.step(); play.step(); } else if (scene === '3') views[0].update(8); else if (scene[0] === '5') views.forEach(v => v.update(16)); }
+  function versionAt(g) { // shot 4: which version is shown at local frame g, and whether it is the stop on the failed fix
+    const before = FAIL.i * TICK; if (g < before) return { i: Math.floor(g / TICK), hold: false }; if (g < before + HOLD) return { i: FAIL.i, hold: true, k: (g - before) / HOLD }; return { i: Math.min(N - 1, FAIL.i + 1 + Math.floor((g - before - HOLD) / TICK)), hold: false }; }
+  function draw(f) {
+    c.setTransform(SCALE, 0, 0, SCALE, 0, 0); c.globalAlpha = 1; c.fillStyle = '#0b0d22'; c.fillRect(0, 0, W, 1080);
+    if (scene === '1') {
+      play.draw(); views[0].draw(c, 0, 540, W, 540, { none: true }); c.fillStyle = '#fff'; c.fillRect(0, 538, W, 4);
+      shade(0, 250, 0.85); shade(542, 270, 0.85);
+      D('I BUILT THIS GAME', 540, 96, 92, '#fff', 'center', 1000); D('WITH FABLE 5.2.', 540, 186, 92, '#ffe27a', 'center', 1000);
+      D('I SET THE DIFFICULTY.', 540, 632, 80, '#fff', 'center', 1010); D('IT FIXED ITSELF TO MATCH.', 540, 718, 80, '#ff7ad9', 'center', 1010);
+      tag('bots at ×3 speed', W - 20, 1052);
+    } else if (scene[0] === '2') {
+      play.draw(); shade(0, 220, 0.7); D('HUNDRED GHOSTS', 540, 110, 96, '#fff', 'center'); F('8 stages · ' + play.st.name, 540, 160, 32, '#ffe27a', 'center');
+    } else if (scene === '3') {
+      views[0].draw(c, 0, 0, W, 1080, { none: true }); shade(0, 300, 0.85);
+      D('100 BOTS PLAY', 540, 110, 104, '#fff', 'center'); D('EVERY STAGE.', 540, 212, 104, '#fff', 'center');
+      c.fillStyle = 'rgba(8,10,28,.86)'; c.beginPath(); c.roundRect(60, 862, 960, 120, 18); c.fill(); D('MY TARGET: ' + BAND + ' FINISH.', 540, 920, 56, '#ffe27a', 'center', 900); F('Red shows where they die. Fable 5.2 changes the stage to hit the target.', 540, 962, 26, '#e6e8ff', 'center', 500);
+      tag('bots at ×4 speed', W - 20, 1052);
+    } else if (scene === '4') {
+      const s = versionAt(f - T4), v = ALL[s.i];
+      D('MEASURE. FIX. REPEAT.', 540, 120, 84, '#fff', 'center', 1000);
+      D('V' + v.version, 540, 470, 330, s.hold ? '#ff5d73' : v.version === LAST.version ? '#5df2a0' : '#ff7ad9', 'center');
+      if (s.hold) { D('ITS OWN FIX BROKE A STAGE.', 540, 580, 64, '#fff', 'center', 1000); D(Math.round(FAIL.from) + '% → ' + Math.round(FAIL.to) + '%', 540, 668, 84, '#ff5d73', 'center'); F('of mid-skill bots finish stage ' + (FAIL.stage + 1) + '. Reverted in v' + (v.version + 1) + '.', 540, 714, 28, '#c9cdf5', 'center', 500); }
+      else { D(v.metrics.inBand + ' OF 8 STAGES FAIR', 540, 600, 76, v.metrics.inBand === 8 ? '#5df2a0' : '#fff', 'center', 1000); }
+      const x0 = 90, cw = 900, pw = cw / N, base = 990, ch = 200;
+      ALL.forEach((u, i) => { const on = i <= s.i, bh = ch * u.metrics.inBand / 8; c.fillStyle = !on ? 'rgba(255,255,255,.07)' : u.metrics.inBand === 8 ? '#5df2a0' : i === FAIL.i && s.i >= FAIL.i ? '#ff5d73' : 'rgba(93,242,160,.55)'; c.beginPath(); c.roundRect(x0 + i * pw + 8, base - Math.max(bh, 6), pw - 16, Math.max(bh, 6), 6); c.fill(); F('v' + u.version, x0 + i * pw + pw / 2, base + 34, 22, i === s.i ? '#fff' : '#7d83b0', 'center'); });
+    } else if (scene[0] === '5') {
+      const k = views.k, hard = views.hard;
+      views[0].draw(c, 0, 0, W, 398, { none: true }); views[1].draw(c, 0, 402, W, 398, { none: true }); c.fillStyle = '#fff'; c.fillRect(0, 398, W, 4);
+      const lab = (t, y, col) => { c.fillStyle = col; c.beginPath(); c.roundRect(24, y, 150, 74, 12); c.fill(); D(t, 99, y + 58, 60, '#10122c', 'center'); }; lab('V' + k.v.version, 22, '#ff8fa0'); lab('V' + LAST.version, 424, '#5df2a0');
+      const a = views.fin[0], b = views.fin[1];
+      D(hard ? 'TOO HARD. IT MADE IT EASIER.' : 'TOO EASY. IT MADE IT HARDER.', 540, 896, 76, '#fff', 'center', 1000);
+      D(a + '%', 290, 1012, 116, '#ff8fa0', 'center'); D('→', 540, 998, 86, '#7d83b0', 'center'); D(b + '%', 800, 1012, 116, '#5df2a0', 'center');
+      F('of mid-skill bots finish ' + views[0].st.name + ' · my target ' + BAND + ' · same seed', 540, 1056, 23, '#9aa0c8', 'center', 500); tag('bots at ×8 speed', W - 20, 786);
+    } else {
+      // end card: the loop (play, measure, fix), its real counts, and the result growing version by version
+      const g = f - T6;
+      D('I SET THE DIFFICULTY.', 540, 104, 74, '#fff', 'center', 1000); D('FABLE 5.2 FIXED THE GAME TO MATCH.', 540, 184, 74, '#ffe27a', 'center', 1000);
+      const steps = [['PLAY', H.totals.botRuns.toLocaleString('en'), 'bot runs', '#6ec6ff'], ['MEASURE', 'WHO FINISHES', 'against my target', '#ff5d73'], ['FIX', N + ' COMMITS', 'one for each version', '#5df2a0']];
+      steps.forEach((r, i) => { const x = 60 + i * 330; c.fillStyle = 'rgba(255,255,255,.06)'; c.beginPath(); c.roundRect(x, 250, 300, 220, 18); c.fill(); c.fillStyle = r[3]; c.beginPath(); c.roundRect(x, 250, 300, 10, 5); c.fill();
+        D(r[0], x + 150, 340, 62, r[3], 'center', 270); D(r[1], x + 150, 410, 50, '#fff', 'center', 270); F(r[2], x + 150, 446, 23, '#9aa0c8', 'center', 500);
+        if (i < 2) D('→', x + 315, 378, 54, '#7d83b0', 'center'); });
+      F('then again, with the same seeds', 540, 510, 24, '#7d83b0', 'center', 500);
+      const k = Math.min(1, g / 60), shown = Math.min(N - 1, Math.floor(k * N)), cur = ALL[shown], x0 = 90, cw = 900, pw = cw / N, base = 900, ch = 190;
+      D('STAGES ON MY TARGET', 540, 610, 56, '#fff', 'center'); D(FIRST.metrics.inBand + ' OF 8', 250, 690, 70, '#ff8fa0', 'center'); D('→', 540, 682, 60, '#7d83b0', 'center'); D(cur.metrics.inBand + ' OF 8', 830, 690, 70, cur.metrics.inBand === 8 ? '#5df2a0' : '#fff', 'center');
+      ALL.forEach((u, i) => { const on = i <= shown, bh = ch * u.metrics.inBand / 8; c.fillStyle = !on ? 'rgba(255,255,255,.07)' : u.metrics.inBand === 8 ? '#5df2a0' : 'rgba(93,242,160,.55)'; c.beginPath(); c.roundRect(x0 + i * pw + 8, base - Math.max(bh, 6), pw - 16, Math.max(bh, 6), 6); c.fill(); F('v' + u.version, x0 + i * pw + pw / 2, base + 30, 21, i === shown ? '#fff' : '#7d83b0', 'center'); });
+      F('My target: ' + BAND + ' of mid-skill bots finish each stage. Some stages got easier, some got harder.', 540, 980, 22, '#c9cdf5', 'center', 500);
+      F('Bots are scripts with noise. No human playtest yet.', 540, 1040, 22, '#7d83b0', 'center', 500);
+    }
+  }
+  window.__post = { total: TOTAL, fps: FPS, frame(f) { setup(f); step(); draw(f); return f + 1 < TOTAL; } };
+  if (!CAP) { let f = 0, acc = 0, last = 0; const loop = now => { acc += last ? now - last : 0; last = now; while (acc >= 1000 / FPS) { acc -= 1000 / FPS; if (f < TOTAL) { setup(f); step(); f++; } } if (acc > 200) acc = 0; draw(Math.min(f, TOTAL - 1)); requestAnimationFrame(loop); }; addEventListener('keydown', e => { if (e.code === 'KeyR') { f = 0; scene = null; } }); requestAnimationFrame(loop); }
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

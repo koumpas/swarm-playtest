@@ -1,0 +1,11 @@
+// Writes the brief for the playtester panel of one version: log/reviews/vN/BRIEF.md
+// usage: node tools/review-pack.mjs <N>
+import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'); const N = +process.argv[2];
+const log = JSON.parse(fs.readFileSync(path.join(ROOT, 'log', `v${N}.json`), 'utf8')); const dir = path.join(ROOT, 'log', 'reviews', 'v' + N); fs.mkdirSync(dir, { recursive: true });
+const tier = { 15: 'low-skill', 50: 'mid-skill', 85: 'high-skill' };
+let md = `# Playtest brief - build ${N} of "Hundred Ghosts"\n\nHundred Ghosts is a 2D side-view obstacle-course platformer with 8 short stages. You cannot hold the controller, so you get recorded runs.\n\nFor each stage you get two images (absolute paths below):\n- \`sK-bot50.png\`: 6 frames, in time order, of one recorded run of a mid-skill player. The last frame shows the goal or the death.\n- \`sK-end.png\`: 100 recorded players ("ghosts") on the same stage at the end of the run. Red glow = where players died. The bottom strip shows the whole stage.\n\nRecorded results of three players (low, mid, high skill) on each stage:\n\n| stage | name | low-skill player | mid-skill player | high-skill player |\n|---|---|---|---|---|\n`;
+for (const st of log.stages) { const cell = b => { const s = log.sheets.find(x => x.stage === st.index && x.bot === b); return s.result === 'goal' ? `reached goal in ${(s.frames / 60).toFixed(1)} s` : `${s.result === 'timeout' ? 'gave up (no way forward found in 45 s)' : 'died: ' + s.result} at ${Math.round(100 * s.x / s.stageWidth)}% of the stage`; }; md += `| ${st.index + 1} | ${st.name} | ${cell(15)} | ${cell(50)} | ${cell(85)} |\n`; }
+md += `\nImages:\n`; for (const st of log.stages) md += `- stage ${st.index + 1}: ${path.join(ROOT, 'shots', 'v' + N, `s${st.index + 1}-bot50.png`)} and ${path.join(ROOT, 'shots', 'v' + N, `s${st.index + 1}-end.png`)}\n`;
+md += `\nJudge only what you see: fairness (does a death look like the player's fault?), difficulty curve from stage 1 to 8, variety, how clear the screen is, and how much you would want to play it. A stage that nobody can finish, or that everybody finishes with no risk, is a defect.\n`;
+fs.writeFileSync(path.join(dir, 'BRIEF.md'), md); console.log(path.join(dir, 'BRIEF.md'));
